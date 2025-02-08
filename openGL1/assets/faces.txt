@@ -1,0 +1,6 @@
+# dirt
+grass_block_side grass_block_side grass_block_side grass_block_side dirt grass_block_top
+# stone
+# sand
+tnt_side tnt_side tnt_side tnt_side tnt_bottom tnt_top
+# D
