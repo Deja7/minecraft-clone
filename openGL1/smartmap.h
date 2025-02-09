@@ -53,6 +53,12 @@ public:
 		delete[] data;
 	}
 
+	int getI(glm::ivec3 pos) {
+		pos += glm::ivec3(radius, -miny, radius);
+		limit(pos);
+		return pos.x + pos.z * (radius * 2 + 1) + pos.y * (radius * 2 + 1) * (radius * 2 + 1);
+	}
+
 	T& getAt(glm::ivec3 pos) {
 		pos += glm::ivec3(radius, -miny, radius);
 		limit(pos);

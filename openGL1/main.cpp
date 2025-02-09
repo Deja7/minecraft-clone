@@ -115,8 +115,8 @@ int main() {
 
     glfwInit();
     glfwWindowHint(GLFW_SAMPLES, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     GLFWwindow* window = glfwCreateWindow(800, 600, "Minecraft", NULL, NULL);
     if (window == NULL){
@@ -237,7 +237,6 @@ int main() {
 
     shader.use();
     shader.setVec3("sunPos", sun);
-
     while (!glfwWindowShouldClose(window)){
 
         //world.update(camera.pos, texDict);
@@ -298,40 +297,53 @@ int main() {
         //glDrawArrays(GL_TRIANGLES, 0, chunk.indices.size() / 3);
         int triangles = 0;
         world.prevPos = glm::ivec3(camera.pos) / 16;
+        if(0){
+            for (int x = -world.radius + 1; x < world.radius; x++) {
+                for (int y = MINY + 1; y < MAXY; y++) {
+                    for (int z = -world.radius + 1; z < world.radius; z++) {
+                        glm::ivec3 cpos(x, y, z);
+                        cpos += glm::ivec3(camera.pos) / 16;
+                        glm::vec3 chunkPos = cpos * 16;
+                        glm::vec4 transformed = projection * view * model * glm::vec4(chunkPos, 1.0f);
+                        if (transformed.z < -16) continue;        //optimize to dynamic fov culling
+                        const RenderChunk& CURRENT = world.getRenderAt(cpos, texDict);
+                        if (!CURRENT.ready) continue;
+
+                        shader.setVec3("chunkOffset", CURRENT.offset);
+                        shader.setFloat("slod", CURRENT.slod);
+                        //glBindVertexArray(CURRENT.VAO);
+                        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, CURRENT.faceData.size());
+                        triangles += CURRENT.faceData.size();
+
+                    }
+                }
+            }
+        }
+
+        world.prevPos = glm::ivec3(camera.pos) / 16;
         for (int x = -world.radius + 1; x < world.radius; x++) {
             for (int y = MINY + 1; y < MAXY; y++) {
                 for (int z = -world.radius + 1; z < world.radius; z++) {
                     glm::ivec3 cpos(x, y, z);
                     cpos += glm::ivec3(camera.pos) / 16;
-                    //cpos.y = y;
                     glm::vec3 chunkPos = cpos * 16;
                     glm::vec4 transformed = projection * view * model * glm::vec4(chunkPos, 1.0f);
-                    if (transformed.z < -16.f) continue;        //optimize to dynamic fov culling
-
+                    if (transformed.z < -16) continue;       
                     const RenderChunk& CURRENT = world.getRenderAt(cpos, texDict);
                     if (!CURRENT.ready) continue;
-
-                    //for (int j = 0; j < CURRENT.faceData.size(); j++) {
-                    //    bitset <32> X;
-                    //    X = CURRENT.faceData[j];
-                    //    std::cout << X << "\n";
-                    //}
-
+        
                     shader.setVec3("chunkOffset", CURRENT.offset);
                     shader.setFloat("slod", CURRENT.slod);
-                    //CURRENT.faceData.clear();
-                    //cout << CURRENT.faceData.size() << "\n";
-                    glBindVertexArray(CURRENT.VAO);
-                    //glBindBuffer(GL_ARRAY_BUFFER, CURRENT.iVBO);
-                    //glBindBuffer(GL_ARRAY_BUFFER, CURRENT.VBO);
-                    //glBufferData(GL_ARRAY_BUFFER, sizeof(int) * CURRENT.faceData.size(), CURRENT.faceData.data(), GL_STATIC_DRAW);
-
-                    glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, CURRENT.faceData.size());
+                    glBindVertexArray(world.wVAO);
+                    glDrawArraysInstancedBaseInstance(GL_TRIANGLE_STRIP, 0, 4, CURRENT.faceData.size(), 12288 * world.wData.getI(cpos));
                     triangles += CURRENT.faceData.size();
-
+        
                 }
             }
         }
+
+
+       
 
         //std::cout << "tris: " << triangles << "\n";
         processInput(window, camera, timer.deltaS());
@@ -346,7 +358,7 @@ int main() {
 
             std::cout << camera.pos.x << " " << camera.pos.y << " " << camera.pos.z << "\n";
 
-            std::cout << "triangles drawn: " << triangles * 2 << "\n";
+            //std::cout << "triangles drawn: " << triangles * 2 << "\n";
         }
     }
 

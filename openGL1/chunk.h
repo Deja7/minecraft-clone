@@ -23,7 +23,6 @@ using namespace std;
 class RenderChunk {
 public:
 	glm::vec3 offset;
-	unsigned int VBO, VAO, iVBO;
 	vector<unsigned int>faceData;
 	float slod;
 	bool ready;
@@ -38,37 +37,6 @@ public:
 			0.f, 0.f, 0.f, 0.f, 0.f,
 			0.f, 0.f, 1.f, 0.f, 1.f
 		};
-		glGenBuffers(1, &iVBO);
-		glBindBuffer(GL_ARRAY_BUFFER, iVBO);
-		//std::cout << faceData.size() * sizeof(int) << "^\n";
-		//glBufferData(GL_ARRAY_BUFFER, faceData.size() * sizeof(int), faceData.data(), GL_STATIC_DRAW);
-		glBufferData(GL_ARRAY_BUFFER, 12288 * sizeof(int), nullptr, GL_STATIC_DRAW);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		
-		glGenVertexArrays(1, &VAO);
-		glGenBuffers(1, &VBO);
-		glBindVertexArray(VAO);
-		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(faceVertices), faceVertices, GL_STATIC_DRAW);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-		glEnableVertexAttribArray(1);
-		
-		glEnableVertexAttribArray(2);
-		glBindBuffer(GL_ARRAY_BUFFER, iVBO);
-		glVertexAttribIPointer(2, 1, GL_UNSIGNED_INT, sizeof(unsigned int), (void*)0);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glVertexAttribDivisor(2, 1);
-		glBindVertexArray(0);
-	}
-	void updateBuffer() {
-		glBindVertexArray(VAO);
-		glBindBuffer(GL_ARRAY_BUFFER, iVBO);
-		glBufferData(GL_ARRAY_BUFFER, faceData.size() * sizeof(unsigned int), faceData.data(), GL_STATIC_DRAW);
-		//glBufferSubData(GL_ARRAY_BUFFER, 0, faceData.size() * sizeof(int), faceData.data());
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glBindVertexArray(0);
 	}
 	
 };
@@ -327,9 +295,12 @@ public:
 		SmartMap<Chunk>wData;
 		SmartMap<RenderChunk>wRender;
 		//vector<unsigned int> ids;
+		unsigned int wVBO, wfVBO, wVAO;
 		glm::ivec3 prevPos;
 		int VOLUME;
+		int lodLevel;
 		World() {
+			lodLevel = 2;
 			radius = 15;
 			VOLUME = pow(radius * 2 + 1, 2) * (MAXY - MINY + 1);
 			cout << "Volume: " << VOLUME << "\n";
@@ -340,6 +311,34 @@ public:
 			}
 			prevPos = glm::ivec3(0, 0, 0);
 
+			glGenBuffers(1, &wVBO);
+			glBindBuffer(GL_ARRAY_BUFFER, wVBO);
+			glBufferData(GL_ARRAY_BUFFER, 12288 * VOLUME * sizeof(int), nullptr, GL_STATIC_DRAW);
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+			float faceVertices[] = {
+			1.f, 0.f, 0.f, 1.f, 0.f,
+			1.f, 0.f, 1.f, 1.f, 1.f,
+			0.f, 0.f, 0.f, 0.f, 0.f,
+			0.f, 0.f, 1.f, 0.f, 1.f
+			};
+
+			glGenVertexArrays(1, &wVAO);
+			glGenBuffers(1, &wfVBO);
+			glBindVertexArray(wVAO);
+			glBindBuffer(GL_ARRAY_BUFFER, wfVBO);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(faceVertices), faceVertices, GL_STATIC_DRAW);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+			glEnableVertexAttribArray(1);
+
+			glEnableVertexAttribArray(2);
+			glBindBuffer(GL_ARRAY_BUFFER, wVBO);
+			glVertexAttribIPointer(2, 1, GL_UNSIGNED_INT, sizeof(unsigned int), (void*)0);
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+			glVertexAttribDivisor(2, 1);
+			glBindVertexArray(0);
 		}
 		~World(){
 			//chunks.clear();
@@ -368,7 +367,6 @@ public:
 			pts[3] = getCondition(glm::ivec3(pos.x - 1, pos.y, pos.z));
 			pts[4] = getCondition(glm::ivec3(pos.x, pos.y - 1, pos.z));
 			pts[5] = getCondition(glm::ivec3(pos.x, pos.y + 1, pos.z));
-
 			if (hash != wData.getHashAt(pos)) {
 				wData.getAt(pos).genChunk(pos.x, pos.y, pos.z);
 				wData.updateHash(pos);
@@ -378,7 +376,12 @@ public:
 			wRender.getAt(pos).offset = pos;
 			wRender.getAt(pos).slod = pow(2, 0);	//LOD
 			wRender.updateHash(pos);
-			wRender.getAt(pos).updateBuffer();
+
+			glBindBuffer(GL_ARRAY_BUFFER, wVBO);
+			glBufferSubData(GL_ARRAY_BUFFER, wRender.getI(pos) * 12288 * sizeof(int),
+				wRender.getAt(pos).faceData.size() * sizeof(int), wRender.getAt(pos).faceData.data());
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+
 			wRender.getAt(pos).ready = 1;
 		}
 
@@ -386,7 +389,7 @@ public:
 			if (qGen.empty()) return;
 			Timer timer;
 			while (timer.getElapsed() < 0.01) {
-			if (qGen.empty()) return;
+				if (qGen.empty()) return;
 				lazyGen(qGen.front(), texDict);
 				//thread genThread(lazyGen, qGen.front(), texDict);
 				//genThread.detach();
@@ -403,7 +406,6 @@ public:
 					wRender.getHashAt(pos) = 0;
 					wRender.getAt(pos).ready = 0;
 				}
-				wRender.getAt(pos).updateBuffer();
 				return wRender.getAt(pos);
 			}
 		}

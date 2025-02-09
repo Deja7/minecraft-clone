@@ -1,4 +1,4 @@
-#version 330 core
+#version 450 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTexCord;
 layout (location = 2) in int data;
@@ -52,6 +52,7 @@ void main(){
     gl_Position = projection * view * model * vec4(R + 16 * chunkOffset, 1.0f);
 
     texCord = aTexCord * vec2(float(sX), float(sY));
+    
     texID = texture;
     normal = getNormal(direction);
 }
